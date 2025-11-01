@@ -1,7 +1,6 @@
-#                                        LOGIN PAGE
-
 import os
 import re
+import subprocess
 import tkinter as tk
 from tkinter import ttk, messagebox
 import mysql.connector as sq
@@ -11,7 +10,7 @@ from PIL import Image, ImageTk, ImageFilter, ImageEnhance
 DB_CONFIG = dict(
     host="localhost",
     user="root",
-    password="Debjit@08#2025",
+    password="12345",
     database="Railway_Reservation_System"
 )
 
@@ -70,7 +69,7 @@ def login():
 
         if result:
             messagebox.showinfo("✅ Success", f"Welcome! Logged in with UID: {uid}")
-            root.destroy()
+            subprocess.Popen(["python", "main.py"])
         else:
             messagebox.showerror("❌ Login Failed", "Invalid UID or password.")
             entry_password.delete(0, tk.END)
