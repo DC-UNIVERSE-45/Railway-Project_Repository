@@ -1,0 +1,355 @@
+# ------------------------------------ TRAIN PAGE ------------------------------------
+import tkinter as tk
+from tkinter import ttk, messagebox
+import mysql.connector as sq
+from PIL import Image, ImageTk
+
+# ---------------- DATABASE CONFIG ----------------
+DB_CONFIG = dict(
+    host="localhost",
+    user="root",
+    password="Debjit@08#2025",
+    database="Railway_Reservation_System"
+)
+
+def get_db_connection():
+    return sq.connect(**DB_CONFIG)
+
+# ---------------- OPEN NEW TRAIN ----------------
+def open_new_train():
+    new_train_window = tk.Toplevel(root)
+    new_train_window.title("➕ Add New Train")
+    new_train_window.geometry("600x500")
+    new_train_window.configure(bg="#E3F2FD")
+
+    tk.Label(new_train_window, text="➕ Add New Train", font=("Helvetica", 20, "bold"),
+             bg="#E3F2FD", fg="#0D47A1").pack(pady=20)
+
+    # White frame with light border
+    form_frame = tk.Frame(new_train_window, bg="#FFFFFF", bd=1, relief="solid", highlightbackground="#B0BEC5")
+    form_frame.pack(pady=10, padx=40, fill="both", expand=True)
+
+    labels = ["Train No", "Train Name", "Source", "Destination", "Halt", "Fare"]
+    entries = {}
+
+    for i, label in enumerate(labels):
+        tk.Label(form_frame, text=label, font=("Helvetica", 12),
+                 bg="#FFFFFF", anchor="w").grid(row=i, column=0, padx=15, pady=10, sticky="w")
+        entry = ttk.Entry(form_frame, width=30, font=("Helvetica", 12))
+        entry.grid(row=i, column=1, padx=15, pady=10)
+        entries[label] = entry
+
+    def save_train():
+        tno = entries["Train No"].get().strip()
+        tname = entries["Train Name"].get().strip()
+        source = entries["Source"].get().strip()
+        destination = entries["Destination"].get().strip()
+        halt = entries["Halt"].get().strip()
+        fare = entries["Fare"].get().strip()
+
+        if not all([tno, tname, source, destination, halt, fare]):
+            messagebox.showerror("Input Error", "All fields are required.")
+            return
+
+        try:
+            tno_int = int(tno)
+            fare_int = int(fare)
+        except ValueError:
+            messagebox.showerror("Input Error", "Train Number and Fare must be integers.")
+            return
+
+        conn = None
+        cur = None
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO Train (Tno, Tname, Source, Destination, Halt, Fare)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (tno_int, tname, source, destination, halt, fare_int))
+            conn.commit()
+            messagebox.showinfo("✅ Success", f"Train '{tname}' added successfully!")
+            new_train_window.destroy()
+        except sq.IntegrityError:
+            messagebox.showerror("Database Error", "Train number already exists.")
+        except sq.Error as e:
+            messagebox.showerror("Database Error", str(e))
+        finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+
+    ttk.Button(form_frame, text="Add Train", command=save_train,
+               style="Train.TButton").grid(row=len(labels), column=0, columnspan=2, pady=25)
+
+
+# ---------------- OPEN SEARCH TRAIN ----------------
+
+def open_search_train():
+    win = tk.Toplevel(root)
+    win.title("Search Train")
+    win.geometry("450x400")
+    win.config(bg="#E3F2FD")
+
+    tk.Label(win, text="Search Train", font=("Helvetica", 18, "bold"), bg="#E3F2FD").pack(pady=15)
+    tk.Label(win, text="Enter Train Number:", bg="#E3F2FD", font=("Helvetica", 12)).pack(pady=5)
+    tno_entry = tk.Entry(win, width=25, font=("Helvetica", 12))
+    tno_entry.pack(pady=5)
+
+    result_box = tk.Text(win, width=50, height=10, font=("Helvetica", 11))
+    result_box.pack(pady=15)
+
+    def search_train():
+        tno = tno_entry.get().strip()
+        if not tno:
+            messagebox.showwarning("Input Error", "Enter a Train Number.")
+            return
+
+        try:
+            tno_int = int(tno)
+        except ValueError:
+            messagebox.showwarning("Input Error", "Train Number must be an integer.")
+            return
+
+        conn = None
+        cur = None
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            # use the same table name 'Train' (case-insensitive on many systems)
+            cur.execute("SELECT Tno, Tname, Source, Destination, Halt FROM Train WHERE Tno = %s", (tno_int,))
+            row = cur.fetchone()
+            result_box.delete(1.0, tk.END)
+            if row:
+                result_box.insert(tk.END, f"Train No: {row[0]}\n"
+                                          f"Train Name: {row[1]}\n"
+                                          f"Source: {row[2]}\n"
+                                          f"Destination: {row[3]}\n"
+                                          f"Halt: {row[4]}")
+            else:
+                result_box.insert(tk.END, "No train found with that number.")
+        except sq.Error as e:
+            messagebox.showerror("Database Error", str(e))
+        finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+
+    tk.Button(win, text="Search", font=("Helvetica", 12, "bold"), bg="#1565C0", fg="white",
+              command=search_train, width=15).pack(pady=10)
+    
+# ---------------- OPEN DELETE TRAIN ----------------
+
+def open_delete_train():
+    delete_win = tk.Toplevel(root)
+    delete_win.title("❌ Delete Train")
+    delete_win.geometry("500x400")
+    delete_win.config(bg="#E3F2FD")
+
+    tk.Label(delete_win, text="❌ Delete Train", font=("Helvetica", 20, "bold"),
+             bg="#E3F2FD", fg="#D32F2F").pack(pady=20)
+
+    frame = tk.Frame(delete_win, bg="#FFFFFF", bd=2, relief="ridge")
+    frame.pack(padx=30, pady=20, fill="both", expand=True)
+
+    tk.Label(frame, text="Enter Train Number:", font=("Helvetica", 12),
+             bg="#FFFFFF").pack(pady=10)
+    tno_entry = ttk.Entry(frame, width=25, font=("Helvetica", 12))
+    tno_entry.pack(pady=5)
+
+    result_label = tk.Label(frame, text="", font=("Helvetica", 11),
+                            bg="#FFFFFF", fg="#333333")
+    result_label.pack(pady=10)
+
+    def delete_train():
+        tno = tno_entry.get().strip()
+        if not tno:
+            messagebox.showwarning("⚠️ Input Error", "Enter a Train Number.")
+            return
+
+        try:
+            tno_int = int(tno)
+        except ValueError:
+            messagebox.showerror("Input Error", "Train Number must be an integer.")
+            return
+
+        conn = None
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT Tname FROM Train WHERE Tno = %s", (tno_int,))
+            record = cur.fetchone()
+
+            if not record:
+                result_label.config(text="❌ No train found with that number.", fg="red")
+                return
+
+            tname = record[0]
+            confirm = messagebox.askyesno("Confirm Delete", f"Delete train '{tname}' (Tno: {tno_int})?")
+            if not confirm:
+                return
+
+            cur.execute("DELETE FROM Train WHERE Tno = %s", (tno_int,))
+            conn.commit()
+            result_label.config(text=f"✅ Train '{tname}' deleted successfully.", fg="green")
+
+        except sq.Error as e:
+            messagebox.showerror("Database Error", str(e))
+        finally:
+            if conn:
+                conn.close()
+
+    ttk.Button(frame, text="Delete Train", style="Train.TButton",
+               command=delete_train).pack(pady=20)
+
+# ---------------- OPEN FARE CALCULATION ----------------
+
+def open_fare_page():
+    fare_win = tk.Toplevel(root)
+    fare_win.title("💰 Fare Calculation")
+    fare_win.geometry("600x520")
+    fare_win.config(bg="#E3F2FD")
+
+    tk.Label(fare_win, text="💰 Fare Calculator", font=("Helvetica", 22, "bold"),
+             bg="#E3F2FD", fg="#1A237E").pack(pady=20)
+
+    frame = tk.Frame(fare_win, bg="#FFFFFF", bd=2, relief="ridge")
+    frame.pack(padx=30, pady=20, fill="both", expand=True)
+
+    # --- Input fields ---
+    tk.Label(frame, text="Enter Train Number:", font=("Helvetica", 13), bg="#FFFFFF").pack(pady=8)
+    tno_entry = ttk.Entry(frame, width=25, font=("Helvetica", 12))
+    tno_entry.pack(pady=5)
+
+    tk.Label(frame, text="Enter Distance (km):", font=("Helvetica", 13), bg="#FFFFFF").pack(pady=8)
+    dist_entry = ttk.Entry(frame, width=25, font=("Helvetica", 12))
+    dist_entry.pack(pady=5)
+
+    result_label = tk.Label(frame, text="", font=("Helvetica", 12),
+                            bg="#FFFFFF", fg="#333333", justify="center")
+    result_label.pack(pady=15)
+
+    # --- Function to calculate fare ---
+    def calculate_fare():
+        tno = tno_entry.get().strip()
+        dist = dist_entry.get().strip()
+
+        if not tno or not dist:
+            messagebox.showwarning("⚠️ Input Error", "Please enter both Train Number and Distance.")
+            return
+
+        try:
+            tno_int = int(tno)
+            distance = float(dist)
+        except ValueError:
+            messagebox.showerror("Input Error", "Train number must be integer and distance must be a number.")
+            return
+
+        conn = None
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT Tname, Source, Destination FROM Train WHERE Tno=%s", (tno_int,))
+            record = cur.fetchone()
+
+            if not record:
+                result_label.config(text="❌ No train found with that number.", fg="red")
+                return
+
+            tname, source, dest = record
+
+            # --- Fare rates per km ---
+            rates = {
+                "Sleeper": 1.5,
+                "3AC": 2.5,
+                "2AC": 3.5,
+                "1AC": 5.0
+            }
+
+            fares = {cls: round(distance * rate, 2) for cls, rate in rates.items()}
+
+            result_text = (
+                f"🚆 Train: {tname}\n"
+                f"📍 Route: {source} ➡ {dest}\n"
+                f"🛣 Distance: {distance} km\n\n"
+                f"💺 Fare Chart:\n"
+                f"• Sleeper: ₹{fares['Sleeper']}\n"
+                f"• 3AC: ₹{fares['3AC']}\n"
+                f"• 2AC: ₹{fares['2AC']}\n"
+                f"• 1AC: ₹{fares['1AC']}"
+            )
+
+            result_label.config(text=result_text, fg="#1B5E20")
+
+        except sq.Error as e:
+            messagebox.showerror("Database Error", str(e))
+        finally:
+            if conn:
+                conn.close()
+
+    # --- Button ---
+    ttk.Button(frame, text="Calculate Fare", style="Train.TButton",
+               command=calculate_fare).pack(pady=20)
+
+
+# ---------------- ROOT WINDOW ----------------
+
+root = tk.Tk()
+root.title("🚉 Train Management - Railway Reservation System")
+root.state("zoomed")
+
+# ---------------- BACKGROUND IMAGE ----------------
+
+try:
+    bg = Image.open("train_bg.jpg")  # optional background
+    bg = bg.resize((root.winfo_screenwidth(), root.winfo_screenheight()))
+    bg_img = ImageTk.PhotoImage(bg)
+    bg_label = tk.Label(root, image=bg_img)
+    bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+except:
+    root.configure(bg="#E3F2FD")
+
+# ---------------- TITLE ----------------
+
+title = tk.Label(root, text="🚆 Train Management", 
+                 font=("Helvetica", 32, "bold"),
+                 bg="#E3F2FD", fg="#0D47A1")
+title.pack(pady=35)
+
+# ---------------- MAIN FRAME (fixed border look) ----------------
+
+main_frame = tk.Frame(root, bg="#FFFFFF", bd=0, relief="flat", highlightthickness=2, highlightbackground="#BBDEFB")
+main_frame.place(relx=0.5, rely=0.5, relwidth=0.529, relheight=0.45, anchor="center")
+
+# ---------------- BUTTON STYLE ----------------
+
+style = ttk.Style()
+style.theme_use("clam")
+style.configure("Train.TButton",
+                font=("Helvetica", 16, "bold"),
+                foreground="white",
+                background="#1565C0",
+                padding=15)
+style.map("Train.TButton", background=[("active", "#0D47A1")])
+
+# ---------------- BUTTON GRID ----------------
+
+btn_new = ttk.Button(main_frame, text="➕ New Train", style="Train.TButton", command=open_new_train)
+btn_search = ttk.Button(main_frame, text="🔍 Search Train", style="Train.TButton", command=open_search_train)
+btn_delete = ttk.Button(main_frame, text="❌ Delete Train", style="Train.TButton", command=open_delete_train)
+btn_fare = ttk.Button(main_frame, text="💰 Fare", style="Train.TButton", command=open_fare_page)
+btn_new.grid(row=0, column=0, padx=35, pady=35, ipadx=45, ipady=15)
+btn_search.grid(row=0, column=1, padx=35, pady=35, ipadx=45, ipady=15)
+btn_delete.grid(row=1, column=0, padx=35, pady=35, ipadx=45, ipady=15)
+btn_fare.grid(row=1, column=1, padx=35, pady=35, ipadx=45, ipady=15)
+# ---------------- BACK BUTTON ----------------
+btn_back = ttk.Button(root, text="⬅️ Back to Main Menu", style="Train.TButton",
+                      command=lambda: root.destroy())
+btn_back.pack(side="bottom", pady=25)
+# ---------------- FOOTER ----------------
+footer = tk.Label(root, text="© 2025 Indian Railway Management System", 
+                  font=("Arial", 12, "italic"), bg="#E3F2FD", fg="#444")
+footer.pack(side="bottom", pady=5)
+root.mainloop()
