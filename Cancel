@@ -1,0 +1,93 @@
+import tkinter as tk
+from tkinter import messagebox
+import mysql.connector as sq
+
+def db_connect():
+    return sq.connect(
+        host="localhost",
+        user="root",
+        passwd="12345",
+        database="Railway_Reservation_System"
+    )
+
+def cancel():
+    pnr = pnr_entry.get().strip()
+
+    if pnr == "":
+        messagebox.showerror("Input Error", "PNR number is required.")
+        return
+    
+    try:
+        pnr = int(pnr)
+    except:
+        messagebox.showerror("Input Error", "PNR must be a number.")
+        return
+    
+    con = None
+    try:
+        con = db_connect()
+        cur = con.cursor()
+
+        cur.execute("SELECT * FROM Booking WHERE Pnr = %s", (pnr,))
+        data = cur.fetchone()
+
+        if data is None:
+            messagebox.showerror("Error", f"No booking found with PNR {pnr}.")
+            return
+        
+        refund = data[6]
+
+        cur.execute("DELETE FROM Booking WHERE Pnr = %s", (pnr,))
+        con.commit()
+
+        result_label.config(
+            text=f"✅ Cancellation Successful!\nRefund Amount: ₹{refund}"
+        )
+
+    except Exception:
+        messagebox.showerror("Error", "Something went wrong!")
+    
+    finally:
+        if con:
+            con.close()
+
+
+# -------------------- GUI --------------------
+root = tk.Tk()
+root.title("Ticket Cancellation")
+root.geometry("700x400")
+root.configure(bg="#E3F2FD")
+
+heading = tk.Label(
+    root,
+    text="❌ Ticket Cancellation",
+    font=("Arial", 20, "bold"),
+    bg="#E3F2FD",
+    fg="#0D47A1"
+)
+heading.pack(pady=20)
+
+frame = tk.Frame(root, bg="white", padx=20, pady=20, relief="ridge", bd=3)
+frame.pack(pady=20)
+
+tk.Label(frame, text="Enter PNR Number:", font=("Arial", 14, "bold"), bg="white").grid(row=0, column=0, pady=10, sticky="w")
+
+pnr_entry = tk.Entry(frame, width=30, font=("Arial", 12))
+pnr_entry.grid(row=0, column=1, padx=10, pady=10)
+
+cancel_btn = tk.Button(
+    root,
+    text="Cancel Ticket",
+    font=("Arial", 14, "bold"),
+    bg="#D32F2F",
+    fg="white",
+    padx=10,
+    pady=5,
+    command=cancel
+)
+cancel_btn.pack(pady=10)
+
+result_label = tk.Label(root, text="", font=("Arial", 12), bg="#E3F2FD")
+result_label.pack(pady=10)
+
+root.mainloop()
